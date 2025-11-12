@@ -1,5 +1,18 @@
 package netsim
 
+import "net"
+
+type packet struct {
+	payload []byte
+	info    PacketInfo
+}
+
+type PacketInfo struct {
+	Src net.Addr
+	Dst net.Addr
+	ECN ECN
+}
+
 type PacketWriter interface {
 	WritePacket([]byte, PacketInfo) (int, error)
 }

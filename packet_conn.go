@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-type packet struct {
-	payload []byte
-	info    PacketInfo
-}
-
 var _ net.PacketConn = (*packetConn)(nil)
 var _ net.Conn = (*packetConn)(nil)
 
