@@ -10,7 +10,7 @@ import (
 
 func TestDelayQueueNode(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		qn := NewQueueNode(newDelayQueue(500 * time.Millisecond))
+		qn := NewQueueNode(newDelayQueue(time.Second))
 		var w PacketWriter
 		ch := make(chan packet, 1)
 		w = PacketWriterFunc(func(b []byte, i PacketInfo) (int, error) {
