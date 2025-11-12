@@ -2,9 +2,6 @@ package netsim
 
 type Path struct {
 	nodes []Node
-
-	forward  PacketWriter
-	backward PacketWriter
 }
 
 func NewPath(nodes []Node) *Path {

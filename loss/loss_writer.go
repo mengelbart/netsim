@@ -10,7 +10,7 @@ func NewWriter() netsim.Node {
 }
 
 func (l *Writer) Link(pw netsim.PacketWriter) netsim.PacketWriter {
-	return netsim.PacketWriterFunc(func(b []byte, a netsim.Attributes) (int, error) {
+	return netsim.PacketWriterFunc(func(b []byte, a netsim.PacketInfo) (int, error) {
 		if false {
 			return len(b), nil
 		}

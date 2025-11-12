@@ -2,7 +2,6 @@ package dualq
 
 import (
 	"context"
-	"maps"
 	"sync"
 	"time"
 
@@ -10,9 +9,9 @@ import (
 )
 
 type packet struct {
-	payload    []byte
-	attributes netsim.Attributes
-	writer     netsim.PacketWriter
+	payload []byte
+	info    netsim.PacketInfo
+	writer  netsim.PacketWriter
 }
 
 type Writer struct {
@@ -35,11 +34,11 @@ func NewWriter() netsim.Node {
 }
 
 func (w *Writer) Link(pw netsim.PacketWriter) netsim.PacketWriter {
-	return netsim.PacketWriterFunc(func(b []byte, a netsim.Attributes) (int, error) {
+	return netsim.PacketWriterFunc(func(b []byte, a netsim.PacketInfo) (int, error) {
 		pkt := &packet{
-			payload:    make([]byte, len(b)),
-			attributes: maps.Clone(a),
-			writer:     pw,
+			payload: make([]byte, len(b)),
+			info:    a,
+			writer:  pw,
 		}
 		n := copy(pkt.payload, b)
 		select {

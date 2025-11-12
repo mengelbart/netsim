@@ -2,7 +2,6 @@ package netsim
 
 import (
 	"context"
-	"maps"
 	"sync"
 	"time"
 
@@ -10,10 +9,10 @@ import (
 )
 
 type packet struct {
-	payload    []byte
-	attributes netsim.Attributes
-	writer     netsim.PacketWriter
-	deadline   time.Time
+	payload  []byte
+	info     netsim.PacketInfo
+	writer   netsim.PacketWriter
+	deadline time.Time
 }
 
 type Writer struct {
@@ -39,12 +38,12 @@ func NewWriter(delay time.Duration) netsim.Node {
 
 // Link implements Node.
 func (w *Writer) Link(pw netsim.PacketWriter) netsim.PacketWriter {
-	return netsim.PacketWriterFunc(func(b []byte, a netsim.Attributes) (int, error) {
+	return netsim.PacketWriterFunc(func(b []byte, i netsim.PacketInfo) (int, error) {
 		pkt := &packet{
-			payload:    make([]byte, len(b)),
-			attributes: maps.Clone(a),
-			writer:     pw,
-			deadline:   time.Now().Add(w.delay),
+			payload:  make([]byte, len(b)),
+			info:     i,
+			writer:   pw,
+			deadline: time.Now().Add(w.delay),
 		}
 		n := copy(pkt.payload, b)
 		select {
@@ -70,7 +69,7 @@ func (w *Writer) run() {
 			}
 			var next *packet
 			next, queue = queue[0], queue[1:]
-			if _, err := next.writer.WritePacket(next.payload, next.attributes); err != nil {
+			if _, err := next.writer.WritePacket(next.payload, next.info); err != nil {
 				panic(err)
 			}
 		case <-w.ctx.Done():

@@ -24,13 +24,8 @@ func newDualPi2() *dualPi2 {
 }
 
 func (q *dualPi2) push(pkt *packet) {
-	if ecnAttr, ok := pkt.attributes[netsim.AttributesKeyECN]; ok {
-		ecn := netsim.ECN(ecnAttr.(uint8))
-		if ecn == netsim.ECNECT0 || ecn == netsim.ECNCE {
-			q.lq.push(pkt)
-		} else {
-			q.cq.push(pkt)
-		}
+	if pkt.info.ECN == netsim.ECNECT0 || pkt.info.ECN == netsim.ECNCE {
+		q.lq.push(pkt)
 	} else {
 		q.cq.push(pkt)
 	}

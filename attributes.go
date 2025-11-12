@@ -1,9 +1,9 @@
 package netsim
 
-type AttributesKey int
+import "net"
 
-const (
-	AttributesKeyECN AttributesKey = iota
-)
-
-type Attributes map[any]any
+type PacketInfo struct {
+	Src net.Addr
+	Dst net.Addr
+	ECN ECN
+}
