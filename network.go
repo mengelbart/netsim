@@ -1,6 +1,7 @@
 package netsim
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -14,24 +15,33 @@ const (
 )
 
 type Net struct {
-	leftNICs  map[netip.Addr]*NIC
-	rightNICs map[netip.Addr]*NIC
-	forward   PacketWriter
-	backward  PacketWriter
+	leftNICs     map[netip.Addr]*NIC
+	rightNICs    map[netip.Addr]*NIC
+	forwardPath  *Path
+	backwardPath *Path
+	forward      PacketWriter
+	backward     PacketWriter
 }
 
 func NewNet(forward, backward []Node) *Net {
 	net := &Net{
-		leftNICs:  map[netip.Addr]*NIC{},
-		rightNICs: map[netip.Addr]*NIC{},
-		forward:   nil,
-		backward:  nil,
+		leftNICs:     map[netip.Addr]*NIC{},
+		rightNICs:    map[netip.Addr]*NIC{},
+		forwardPath:  NewPath(forward),
+		backwardPath: NewPath(backward),
+		forward:      nil,
+		backward:     nil,
 	}
-	fp := NewPath(forward)
-	bp := NewPath(backward)
-	net.forward = fp.Connect(net.packetWriter(net.rightNICs))
-	net.backward = bp.Connect(net.packetWriter(net.leftNICs))
+	net.forward = net.forwardPath.Connect(net.packetWriter(net.rightNICs))
+	net.backward = net.backwardPath.Connect(net.packetWriter(net.leftNICs))
 	return net
+}
+
+func (n *Net) Close() error {
+	return errors.Join(
+		n.forwardPath.Close(),
+		n.backwardPath.Close(),
+	)
 }
 
 func (n *Net) NIC(loc location, address netip.Addr) *NIC {

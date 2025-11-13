@@ -5,35 +5,35 @@ import (
 	"time"
 )
 
-var _ heap.Interface = (*delayQueue)(nil)
+var _ heap.Interface = (*DelayQueue)(nil)
 
-type delayQueue struct {
+type DelayQueue struct {
 	delay   time.Duration
 	packets []*queuedPacket
 }
 
-func newDelayQueue(delay time.Duration) *delayQueue {
-	return &delayQueue{
+func NewDelayQueue(delay time.Duration) *DelayQueue {
+	return &DelayQueue{
 		delay:   delay,
 		packets: []*queuedPacket{},
 	}
 }
 
-func (q *delayQueue) push(pkt *queuedPacket) {
+func (q *DelayQueue) push(pkt *queuedPacket) {
 	pkt.due = time.Now().Add(q.delay)
 	heap.Push(q, pkt)
 }
 
-func (q *delayQueue) pop() *queuedPacket {
+func (q *DelayQueue) pop() *queuedPacket {
 	pkt := heap.Pop(q)
 	return pkt.(*queuedPacket)
 }
 
-func (q *delayQueue) empty() bool {
+func (q *DelayQueue) empty() bool {
 	return len(q.packets) == 0
 }
 
-func (q *delayQueue) next() time.Time {
+func (q *DelayQueue) next() time.Time {
 	if q.empty() {
 		return time.Time{}
 	}
@@ -41,17 +41,17 @@ func (q *delayQueue) next() time.Time {
 }
 
 // Len implements heap.Interface.
-func (q *delayQueue) Len() int {
+func (q *DelayQueue) Len() int {
 	return len(q.packets)
 }
 
 // Less implements heap.Interface.
-func (q *delayQueue) Less(i int, j int) bool {
+func (q *DelayQueue) Less(i int, j int) bool {
 	return q.packets[i].due.Before(q.packets[j].due)
 }
 
 // Pop implements heap.Interface.
-func (q *delayQueue) Pop() any {
+func (q *DelayQueue) Pop() any {
 	n := len(q.packets)
 	pkt := q.packets[n-1]
 	q.packets = q.packets[0 : n-1]
@@ -59,12 +59,12 @@ func (q *delayQueue) Pop() any {
 }
 
 // Push implements heap.Interface.
-func (q *delayQueue) Push(x any) {
+func (q *DelayQueue) Push(x any) {
 	pkt := x.(*queuedPacket)
 	q.packets = append(q.packets, pkt)
 }
 
 // Swap implements heap.Interface.
-func (q *delayQueue) Swap(i int, j int) {
+func (q *DelayQueue) Swap(i int, j int) {
 	q.packets[i], q.packets[j] = q.packets[j], q.packets[i]
 }

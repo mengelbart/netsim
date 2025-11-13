@@ -1,5 +1,7 @@
 package netsim
 
+import "errors"
+
 type Path struct {
 	nodes []Node
 }
@@ -15,4 +17,11 @@ func (p *Path) Connect(writer PacketWriter) PacketWriter {
 		writer = node.Link(writer)
 	}
 	return writer
+}
+
+func (p *Path) Close() (err error) {
+	for _, n := range p.nodes {
+		err = errors.Join(err, n.Close())
+	}
+	return
 }

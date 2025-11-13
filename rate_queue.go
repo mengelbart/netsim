@@ -6,28 +6,37 @@ import (
 	"golang.org/x/time/rate"
 )
 
-type rateQueue struct {
-	limiter   *rate.Limiter
-	packets   []*queuedPacket
-	queueSize int
+type RateQueue struct {
+	limiter     *rate.Limiter
+	packets     []*queuedPacket
+	queueSize   int
+	currentSize int
+	headDrop    bool
 }
 
-func newRateQueue(bitrate float64, burst int, queueSize int) *rateQueue {
-	return &rateQueue{
-		limiter:   rate.NewLimiter(rate.Limit(bitrate), burst),
-		packets:   []*queuedPacket{},
-		queueSize: queueSize,
+func NewRateQueue(bitrate float64, burst int, queueSize int) *RateQueue {
+	return &RateQueue{
+		limiter:     rate.NewLimiter(rate.Limit(bitrate), burst),
+		packets:     []*queuedPacket{},
+		queueSize:   queueSize,
+		currentSize: 0,
+		headDrop:    true,
 	}
 }
 
-func (q *rateQueue) push(pkt *queuedPacket) {
-	if len(q.packets) >= q.queueSize {
+func (q *RateQueue) push(pkt *queuedPacket) {
+	if q.currentSize+len(pkt.payload) >= q.queueSize {
+		if q.headDrop {
+			q.packets = q.packets[1:]
+			q.packets = append(q.packets, pkt)
+		}
 		return
 	}
 	q.packets = append(q.packets, pkt)
+	q.currentSize += len(pkt.payload)
 }
 
-func (q *rateQueue) pop() (pkt *queuedPacket) {
+func (q *RateQueue) pop() (pkt *queuedPacket) {
 	if q.empty() {
 		return nil
 	}
@@ -35,14 +44,15 @@ func (q *rateQueue) pop() (pkt *queuedPacket) {
 		return nil
 	}
 	pkt, q.packets = q.packets[0], q.packets[1:]
+	q.currentSize -= len(pkt.payload)
 	return pkt
 }
 
-func (q *rateQueue) empty() bool {
+func (q *RateQueue) empty() bool {
 	return len(q.packets) == 0
 }
 
-func (q *rateQueue) next() time.Time {
+func (q *RateQueue) next() time.Time {
 	if q.empty() {
 		return time.Time{}
 	}

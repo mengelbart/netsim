@@ -85,7 +85,9 @@ func (n *QueueNode) schedule() bool {
 		n.queue.push(pkt)
 	case <-timer:
 		pkt := n.queue.pop()
-		_, _ = pkt.writer.WritePacket(pkt.payload, pkt.info)
+		if pkt != nil {
+			_, _ = pkt.writer.WritePacket(pkt.payload, pkt.info)
+		}
 
 	case <-n.close:
 		return false
