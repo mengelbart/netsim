@@ -20,13 +20,13 @@ func NewRateQueue(bitrate float64, burst int, queueSize int) *RateQueue {
 		packets:     []*queuedPacket{},
 		queueSize:   queueSize,
 		currentSize: 0,
-		headDrop:    true,
+		headDrop:    false,
 	}
 }
 
 func (q *RateQueue) push(pkt *queuedPacket) {
 	if q.currentSize+len(pkt.payload) >= q.queueSize {
-		if q.headDrop {
+		if q.headDrop && len(q.packets) > 0 {
 			q.packets = q.packets[1:]
 			q.packets = append(q.packets, pkt)
 		}
