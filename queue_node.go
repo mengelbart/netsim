@@ -97,6 +97,8 @@ func (n *QueueNode) schedule() bool {
 
 func (n *QueueNode) Close() error {
 	n.lock.Lock()
+	defer n.lock.Unlock()
+
 	defer n.wg.Wait()
 	if n.closed {
 		return nil
