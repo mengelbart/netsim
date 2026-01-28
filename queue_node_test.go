@@ -39,7 +39,7 @@ func TestDelayQueueNode(t *testing.T) {
 
 func TestRateQueueNode(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		qn := NewQueueNode(NewRateQueue(10_000, 3000, 10))
+		qn := NewQueueNode(NewRateQueue(10_000, 3000, 10, false))
 		var w PacketWriter
 		var bytes int
 		start := time.Now()

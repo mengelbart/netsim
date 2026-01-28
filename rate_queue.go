@@ -14,13 +14,13 @@ type RateQueue struct {
 	headDrop    bool
 }
 
-func NewRateQueue(bitrate float64, burst int, queueSize int) *RateQueue {
+func NewRateQueue(bitrate float64, burst int, queueSize int, headDrop bool) *RateQueue {
 	return &RateQueue{
 		limiter:     rate.NewLimiter(rate.Limit(bitrate), burst),
 		packets:     []*queuedPacket{},
 		queueSize:   queueSize,
 		currentSize: 0,
-		headDrop:    false,
+		headDrop:    headDrop,
 	}
 }
 

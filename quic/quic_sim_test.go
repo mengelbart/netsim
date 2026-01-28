@@ -22,7 +22,7 @@ import (
 
 type pathFactory func() []netsim.Node
 
-func pathFactoryFunc(delay time.Duration, bandwidth float64, burst, queueSize int) pathFactory {
+func pathFactoryFunc(delay time.Duration, bandwidth float64, burst, queueSize int, headDrop bool) pathFactory {
 	return func() []netsim.Node {
 		nodes := []netsim.Node{}
 		if delay > 0 {
@@ -30,7 +30,7 @@ func pathFactoryFunc(delay time.Duration, bandwidth float64, burst, queueSize in
 		}
 		if bandwidth > 0 {
 			nodes = append(nodes,
-				netsim.NewQueueNode(netsim.NewRateQueue(float64(bandwidth), burst, queueSize)),
+				netsim.NewQueueNode(netsim.NewRateQueue(float64(bandwidth), burst, queueSize, headDrop)),
 			)
 		}
 		return nodes
@@ -38,6 +38,9 @@ func pathFactoryFunc(delay time.Duration, bandwidth float64, burst, queueSize in
 }
 
 func TestQUIC(t *testing.T) {
+	bw := float64(1_250_000) // bit/s
+	owd := 20 * time.Millisecond
+	bdp := int(2 * bw * owd.Seconds())
 	cases := []struct {
 		name     string
 		forward  pathFactory
@@ -45,8 +48,23 @@ func TestQUIC(t *testing.T) {
 	}{
 		{
 			name:     "1",
-			forward:  pathFactoryFunc(20*time.Millisecond, 1.25e+7, 10_000, 2*250_000),
-			backward: pathFactoryFunc(20*time.Millisecond, 1.25e+7, 10_000, 2*250_000),
+			forward:  pathFactoryFunc(owd, bw, 5000, bdp, false),
+			backward: pathFactoryFunc(owd, bw, 5000, bdp, false),
+		},
+		{
+			name:     "1",
+			forward:  pathFactoryFunc(owd, bw, 5000, 10*bdp, false),
+			backward: pathFactoryFunc(owd, bw, 5000, 10*bdp, false),
+		},
+		{
+			name:     "1",
+			forward:  pathFactoryFunc(owd, bw, 5000, bdp, true),
+			backward: pathFactoryFunc(owd, bw, 5000, bdp, true),
+		},
+		{
+			name:     "1",
+			forward:  pathFactoryFunc(owd, bw, 5000, 10*bdp, true),
+			backward: pathFactoryFunc(owd, bw, 5000, 10*bdp, true),
 		},
 	}
 	for _, tc := range cases {
