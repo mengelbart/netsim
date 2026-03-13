@@ -16,7 +16,7 @@ type RateQueue struct {
 
 func NewRateQueue(bitrate float64, burst int, queueSize int, headDrop bool) *RateQueue {
 	return &RateQueue{
-		limiter:     rate.NewLimiter(rate.Limit(bitrate), burst),
+		limiter:     rate.NewLimiter(rate.Limit(bitrate/8), burst), // convert bit/s byte/s
 		packets:     []*queuedPacket{},
 		queueSize:   queueSize,
 		currentSize: 0,

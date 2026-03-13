@@ -64,7 +64,7 @@ func (n *NIC) write(b []byte, i PacketInfo) (int, error) {
 		port = dst.AddrPort().Port()
 	// case *net.UnixAddr:
 	default:
-		fmt.Errorf("unexpected net.Addr: %#v", dst)
+		return 0, fmt.Errorf("unexpected net.Addr: %#v", dst)
 	}
 	conn, ok := n.conns[port]
 	if !ok {
