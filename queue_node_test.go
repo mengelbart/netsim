@@ -58,6 +58,6 @@ func TestRateQueueNode(t *testing.T) {
 		assert.NoError(t, qn.Close())
 
 		duration := end.Sub(start)
-		assert.Less(t, float64(bytes)/duration.Seconds(), 1.1*float64(10_000))
+		assert.Less(t, float64(bytes)/duration.Seconds(), 1.1*float64(10_000/8))
 	})
 }
