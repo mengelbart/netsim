@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
+	"time"
 )
 
 type location bool
@@ -76,4 +78,21 @@ func (n *Net) packetWriter(table map[netip.Addr]*NIC) PacketWriter {
 		}
 		return nic.write(b, a)
 	})
+}
+
+func (n *Net) WriteTcLogForwardPath(filePath string, duration time.Duration) error {
+	now := time.Now()
+
+	startTc := newTcLogEntry(n.forwardPath, now, duration)
+	endTc := newTcLogEntry(n.forwardPath, now.Add(duration), 0)
+
+	startBuf, err := startTc.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	endBuf, err := endTc.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filePath, append(append(startBuf, '\n'), endBuf...), 0o644)
 }
