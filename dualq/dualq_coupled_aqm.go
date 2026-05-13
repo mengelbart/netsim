@@ -14,6 +14,14 @@ type packet struct {
 	writer  netsim.PacketWriter
 }
 
+func (p *packet) ecn() bool {
+	return false // TODO
+}
+
+func (p *packet) mark() {
+	// TODO
+}
+
 type Writer struct {
 	ctx       context.Context
 	cancelCtx context.CancelFunc
@@ -51,7 +59,8 @@ func (w *Writer) Link(pw netsim.PacketWriter) netsim.PacketWriter {
 }
 
 func (w *Writer) run() {
-	queue := &dualPi2{}
+	maxLinkRate := 1_000_000 // TODO: set max link rate correctly
+	queue := newDualPi2(maxLinkRate)
 	timer := time.NewTimer(0)
 	for {
 		select {

@@ -11,19 +11,40 @@ type dualPi2 struct {
 	k  float64
 	cq *pi2
 	lq *ramp
+
+	MTU   int
+	limit int
+
+	p_CL    float64
+	p_C     float64
+	prevq   time.Duration
+	p_prime float64
+
+	scheduler *wrr
 }
 
-func newDualPi2() *dualPi2 {
+func newDualPi2(maxLinkRate int) *dualPi2 {
 	k := float64(2)
 	q := &dualPi2{
-		k:  k,
-		cq: newPi2(k),
-		lq: newRamp(),
+		k:     k,
+		cq:    newPi2(k),
+		lq:    newRamp(),
+		limit: maxLinkRate * 250,
+		// TODO: set MTU
+		scheduler: newWrr(),
 	}
+
 	return q
 }
 
 func (q *dualPi2) push(pkt *packet) {
+	if q.lq.byt()+q.cq.byt()+q.MTU > q.limit {
+		// drop
+		return
+	}
+
+	//  timestamp(pkt)     % only needed if using the sojourn technique
+
 	if pkt.info.ECN == netsim.ECNECT0 || pkt.info.ECN == netsim.ECNCE {
 		q.lq.push(pkt)
 	} else {
@@ -31,53 +52,63 @@ func (q *dualPi2) push(pkt *packet) {
 	}
 }
 
+// pop should be repeatedly called whenever the lower layer is ready to forward a packet
 func (q *dualPi2) pop() *packet {
+	for q.lq.byt()+q.cq.byt() > 0 {
+		hasL4S := q.lq.byt() > 0
+		hasClassic := q.cq.byt() > 0
+		scheduleLq := q.scheduler.schedule(hasL4S, hasClassic)
+
+		if scheduleLq {
+
+			pkt := q.lq.pop()
+			p_prime_L := q.lq.laqm()      // Native LAQM
+			p_L := max(p_prime_L, q.p_CL) // Combining function
+
+			var mark bool
+			q.lq.recurCount, mark = recur(q.lq.recurCount, p_L)
+			if mark { // linear marking
+				pkt.mark()
+			}
+
+			return pkt
+
+		} else {
+			pkt := q.cq.pop()
+
+			var mark bool
+			q.cq.recurCount, mark = recur(q.cq.recurCount, q.p_C)
+			if mark { // probability p_C = p'^2
+				if pkt.info.ECN == netsim.ECNNonECT { // if ECN field = not-ECT
+					// drop packet
+					continue
+				}
+				pkt.mark() // squared mark
+			}
+
+			return pkt
+		}
+	}
+
 	return nil
 }
 
-type pi2 struct {
-	target  time.Duration
-	rttMax  time.Duration
-	pCmax   float64
-	tUpdate time.Duration
-	alpha   float64
-	beta    float64
+func (q *dualPi2) update() {
+	curq := q.cq.time() // use queuing time of first-in Classic packet
+
+	q.p_prime = q.p_prime + q.cq.alpha*(float64(curq)-float64(q.cq.target)) + q.cq.beta*(float64(curq)-float64(q.prevq))
+	q.p_CL = q.k * q.p_prime       // Coupled L4S prob = base prob * coupling factor
+	q.p_C = math.Pow(q.p_prime, 2) // Classic prob = (base prob)^2
+	q.prevq = curq
 }
 
-func newPi2(k float64) *pi2 {
-	target := 15 * time.Millisecond
-	rttMax := 100 * time.Millisecond
-	tUpdate := min(target, rttMax/3.0)
-	return &pi2{
-		target:  target,
-		rttMax:  rttMax,
-		pCmax:   min(1.0/math.Sqrt(k), 1.0),
-		tUpdate: tUpdate,
-		alpha:   0.1 * tUpdate.Seconds() / math.Sqrt(float64(rttMax)),
-		beta:    0.3 / rttMax.Seconds(),
+func recur(recurCount, likelyhood float64) (float64, bool) {
+	recurCount += likelyhood
+
+	if recurCount > 1 {
+		recurCount--
+		return recurCount, true
 	}
-}
 
-func (p *pi2) push(pkt *packet) {
-
-}
-
-type ramp struct {
-	minThreshold time.Duration
-	rangee       time.Duration
-	thresholdLen int
-	pLmax        float64
-}
-
-func newRamp() *ramp {
-	return &ramp{
-		minThreshold: 800 * time.Microsecond,
-		rangee:       400 * time.Microsecond,
-		thresholdLen: 1,
-		pLmax:        1,
-	}
-}
-
-func (r *ramp) push(pkt *packet) {
-
+	return recurCount, false
 }
