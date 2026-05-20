@@ -61,6 +61,11 @@ func (w *Writer) Link(pw netsim.PacketWriter) netsim.PacketWriter {
 func (w *Writer) run() {
 	maxLinkRate := 1_000_000 // TODO: set max link rate correctly
 	queue := newDualPi2(maxLinkRate)
+
+	w.wg.Go(func() {
+		queue.RunUpdates(w.ctx)
+	})
+
 	timer := time.NewTimer(0)
 	for {
 		select {

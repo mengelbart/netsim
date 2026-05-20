@@ -1,6 +1,7 @@
 package dualq
 
 import (
+	"context"
 	"math"
 	"time"
 
@@ -100,6 +101,19 @@ func (q *dualPi2) update() {
 	q.p_CL = q.k * q.p_prime       // Coupled L4S prob = base prob * coupling factor
 	q.p_C = math.Pow(q.p_prime, 2) // Classic prob = (base prob)^2
 	q.prevq = curq
+}
+
+func (q *dualPi2) RunUpdates(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		q.update()
+		time.Sleep(q.cq.tUpdate)
+	}
 }
 
 func recur(recurCount, likelyhood float64) (float64, bool) {
