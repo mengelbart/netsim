@@ -14,10 +14,6 @@ type packet struct {
 	writer  netsim.PacketWriter
 }
 
-func (p *packet) ecn() bool {
-	return false // TODO
-}
-
 func (p *packet) mark() {
 	// TODO
 }

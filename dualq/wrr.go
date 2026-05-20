@@ -1,5 +1,6 @@
 package dualq
 
+// Weighted Round Robin scheduler for L4S and Classic queues
 type wrr struct {
 	l4sWeight int
 

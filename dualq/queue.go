@@ -10,8 +10,8 @@ import (
 
 type dualPi2 struct {
 	k  float64
-	cq *pi2
-	lq *ramp
+	cq *internalQueue
+	lq *internalQueue
 
 	MTU   int
 	limit int
@@ -22,17 +22,52 @@ type dualPi2 struct {
 	p_prime float64
 
 	scheduler *wrr
+
+	// ramp values
+	minThreshold time.Duration
+	rangee       time.Duration
+	thresholdLen int
+	pLmax        float64
+	maxThreshold time.Duration
+
+	// pi2 values
+	target  time.Duration
+	rttMax  time.Duration
+	pCmax   float64
+	tUpdate time.Duration
+	alpha   float64
+	beta    float64
 }
 
 func newDualPi2(maxLinkRate int) *dualPi2 {
 	k := float64(2)
+
+	target := 15 * time.Millisecond
+	rttMax := 100 * time.Millisecond
+	tUpdate := min(target, rttMax/3.0)
+
 	q := &dualPi2{
 		k:     k,
-		cq:    newPi2(k),
-		lq:    newRamp(),
+		cq:    newInternalQueue(),
+		lq:    newInternalQueue(),
 		limit: maxLinkRate * 250,
 		// TODO: set MTU
 		scheduler: newWrr(),
+
+		// ramp
+		minThreshold: 800 * time.Microsecond,
+		rangee:       400 * time.Microsecond,
+		thresholdLen: 1,
+		pLmax:        1,
+		// TODO: set maxThreshold (maxTH)
+
+		// pi2
+		target:  target,
+		rttMax:  rttMax,
+		pCmax:   min(1.0/math.Sqrt(k), 1.0),
+		tUpdate: tUpdate,
+		alpha:   0.1 * tUpdate.Seconds() / math.Sqrt(float64(rttMax)),
+		beta:    0.3 / rttMax.Seconds(),
 	}
 
 	return q
@@ -63,7 +98,7 @@ func (q *dualPi2) pop() *packet {
 		if scheduleLq {
 
 			pkt := q.lq.pop()
-			p_prime_L := q.lq.laqm()      // Native LAQM
+			p_prime_L := q.laqm()         // Native LAQM
 			p_L := max(p_prime_L, q.p_CL) // Combining function
 
 			var mark bool
@@ -97,7 +132,7 @@ func (q *dualPi2) pop() *packet {
 func (q *dualPi2) update() {
 	curq := q.cq.time() // use queuing time of first-in Classic packet
 
-	q.p_prime = q.p_prime + q.cq.alpha*(float64(curq)-float64(q.cq.target)) + q.cq.beta*(float64(curq)-float64(q.prevq))
+	q.p_prime = q.p_prime + q.alpha*(float64(curq)-float64(q.target)) + q.beta*(float64(curq)-float64(q.prevq))
 	q.p_CL = q.k * q.p_prime       // Coupled L4S prob = base prob * coupling factor
 	q.p_C = math.Pow(q.p_prime, 2) // Classic prob = (base prob)^2
 	q.prevq = curq
@@ -112,10 +147,23 @@ func (q *dualPi2) RunUpdates(ctx context.Context) {
 		}
 
 		q.update()
-		time.Sleep(q.cq.tUpdate)
+		time.Sleep(q.tUpdate)
 	}
 }
 
+// laqm is Native L4S AQM
+func (p *dualPi2) laqm() float64 {
+	qdelay := p.lq.time()
+	if qdelay >= p.maxThreshold {
+		return 1
+	} else if qdelay > p.minThreshold {
+		return float64(qdelay) - float64(p.minThreshold)/float64(p.rangee)
+	} else {
+		return 0
+	}
+}
+
+// recur returns true with a certain likelihood
 func recur(recurCount, likelyhood float64) (float64, bool) {
 	recurCount += likelyhood
 
