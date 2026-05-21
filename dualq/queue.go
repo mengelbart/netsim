@@ -59,14 +59,14 @@ func newDualPi2(maxLinkRate int) *dualPi2 {
 		rangee:       400 * time.Microsecond,
 		thresholdLen: 1,
 		pLmax:        1,
-		// TODO: set maxThreshold (maxTH)
+		maxThreshold: 1200 * time.Microsecond, // TODO: maxTh not defined in papger
 
 		// pi2
 		target:  target,
 		rttMax:  rttMax,
 		pCmax:   min(1.0/math.Sqrt(k), 1.0),
 		tUpdate: tUpdate,
-		alpha:   0.1 * tUpdate.Seconds() / math.Sqrt(float64(rttMax)),
+		alpha:   0.1 * tUpdate.Seconds() / math.Sqrt(rttMax.Seconds()),
 		beta:    0.3 / rttMax.Seconds(),
 	}
 
@@ -129,25 +129,31 @@ func (q *dualPi2) pop() *packet {
 	return nil
 }
 
+func (q *dualPi2) empty() bool {
+	return q.lq.byt()+q.cq.byt() == 0
+}
+
 func (q *dualPi2) update() {
 	curq := q.cq.time() // use queuing time of first-in Classic packet
 
-	q.p_prime = q.p_prime + q.alpha*(float64(curq)-float64(q.target)) + q.beta*(float64(curq)-float64(q.prevq))
+	q.p_prime = q.p_prime + q.alpha*(curq.Seconds()-q.target.Seconds()) + q.beta*(curq.Seconds()-q.prevq.Seconds())
 	q.p_CL = q.k * q.p_prime       // Coupled L4S prob = base prob * coupling factor
 	q.p_C = math.Pow(q.p_prime, 2) // Classic prob = (base prob)^2
 	q.prevq = curq
 }
 
 func (q *dualPi2) RunUpdates(ctx context.Context) {
+	ticker := time.NewTicker(q.tUpdate)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
+		case <-ticker.C:
 		}
 
 		q.update()
-		time.Sleep(q.tUpdate)
 	}
 }
 
@@ -157,7 +163,7 @@ func (p *dualPi2) laqm() float64 {
 	if qdelay >= p.maxThreshold {
 		return 1
 	} else if qdelay > p.minThreshold {
-		return float64(qdelay) - float64(p.minThreshold)/float64(p.rangee)
+		return (qdelay.Seconds() - p.minThreshold.Seconds()) / p.rangee.Seconds()
 	} else {
 		return 0
 	}
