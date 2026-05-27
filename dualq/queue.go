@@ -14,7 +14,7 @@ type dualPi2 struct {
 	cq *internalQueue
 	lq *internalQueue
 
-	MTU   int
+	mtu   int
 	limit int
 
 	mtx  sync.Mutex // protect p_CL and p_C
@@ -29,7 +29,7 @@ type dualPi2 struct {
 	// ramp values
 	minThreshold time.Duration
 	rangee       time.Duration
-	thresholdLen int
+	thLen        int
 	pLmax        float64
 	maxThreshold time.Duration
 
@@ -50,19 +50,18 @@ func newDualPi2(maxLinkRate int) *dualPi2 {
 	tUpdate := min(target, rttMax/3.0)
 
 	q := &dualPi2{
-		k:     k,
-		cq:    newInternalQueue(),
-		lq:    newInternalQueue(),
-		limit: maxLinkRate * 250,
-		// TODO: set MTU
+		k:         k,
+		cq:        newInternalQueue(),
+		lq:        newInternalQueue(),
+		limit:     maxLinkRate * 250,
+		mtu:       1200,
 		scheduler: newWrr(),
 
 		// ramp
-		minThreshold: 800 * time.Microsecond,
 		rangee:       400 * time.Microsecond,
-		thresholdLen: 1,                       // Th_len
-		pLmax:        1,                       // p_Lmax
-		maxThreshold: 1200 * time.Microsecond, // TODO: maxTh not defined in papger
+		minThreshold: 800 * time.Microsecond,
+		thLen:        1, // Th_len
+		pLmax:        1, // p_Lmax
 
 		// pi2
 		target:  target,
@@ -72,12 +71,13 @@ func newDualPi2(maxLinkRate int) *dualPi2 {
 		alpha:   0.1 * tUpdate.Seconds() / math.Sqrt(rttMax.Seconds()),
 		beta:    0.3 / rttMax.Seconds(),
 	}
+	q.maxThreshold = q.minThreshold + q.rangee
 
 	return q
 }
 
 func (q *dualPi2) push(pkt *packet) {
-	if q.lq.byt()+q.cq.byt()+q.MTU > q.limit {
+	if q.lq.byt()+q.cq.byt()+q.mtu > q.limit {
 		// drop
 		return
 	}
@@ -103,7 +103,7 @@ func (q *dualPi2) pop() *packet {
 
 			if q.p_CL < q.pLmax { // Check for overload saturation
 				var p_prime_L float64
-				if q.lq.len() > q.thresholdLen { // >1 packet queued
+				if q.lq.len() > q.thLen { // >1 packet queued
 					p_prime_L = q.laqm() // Native LAQM
 				} else {
 					p_prime_L = 0 // Suppress marking 1 pkt queue
