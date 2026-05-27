@@ -30,6 +30,23 @@ type QueueNode struct {
 	wg      sync.WaitGroup
 }
 
+func (n *QueueNode) TcLog() TcLogData {
+	switch q := n.queue.(type) {
+	case *DelayQueue:
+		return TcLogData{
+			Delay: q.delay.Microseconds(),
+		}
+	case *RateQueue:
+		return TcLogData{
+			Bandwidth: float64(q.limiter.Limit()) * 8,
+			Burst:     q.limiter.Burst(),
+			Limit:     q.queueSize,
+		}
+	default:
+		return TcLogData{}
+	}
+}
+
 func NewQueueNode(q queue) *QueueNode {
 	qn := &QueueNode{
 		lock:    sync.Mutex{},

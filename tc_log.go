@@ -6,6 +6,17 @@ import (
 	"time"
 )
 
+type TcLogData struct {
+	Bandwidth float64
+	Burst     int
+	Limit     int
+	Delay     int64
+}
+
+type TcLogProvider interface {
+	TcLog() TcLogData
+}
+
 type tcLogEntry struct {
 	TrafficControl bool   `json:"traffic_control"`
 	Duration       int    `json:"duration"`
@@ -24,17 +35,22 @@ func newTcLogEntry(path *Path, start time.Time, duration time.Duration) tcLogEnt
 	}
 
 	for _, n := range path.nodes {
-		qn, ok := n.(*QueueNode)
+		provider, ok := n.(TcLogProvider)
 		if !ok {
 			continue
 		}
-		if dq, ok := qn.queue.(*DelayQueue); ok {
-			tc.Delay = dq.delay.Microseconds()
+		data := provider.TcLog()
+		if data.Bandwidth != 0 {
+			tc.Bandwidth = formatBitrateTC(data.Bandwidth)
 		}
-		if rq, ok := qn.queue.(*RateQueue); ok {
-			tc.Bandwidth = formatBitrateTC(float64(rq.limiter.Limit()) * 8)
-			tc.Burst = rq.limiter.Burst()
-			tc.Limit = rq.queueSize
+		if data.Burst != 0 {
+			tc.Burst = data.Burst
+		}
+		if data.Limit != 0 {
+			tc.Limit = data.Limit
+		}
+		if data.Delay != 0 {
+			tc.Delay = data.Delay
 		}
 	}
 
