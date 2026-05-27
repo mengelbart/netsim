@@ -46,6 +46,10 @@ func (p *internalQueue) byt() int {
 	return p.bytes
 }
 
+func (p *internalQueue) len() int {
+	return len(p.queue)
+}
+
 func (p *internalQueue) time() time.Duration {
 	if len(p.queue) == 0 {
 		return 0

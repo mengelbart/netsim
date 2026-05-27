@@ -60,8 +60,8 @@ func newDualPi2(maxLinkRate int) *dualPi2 {
 		// ramp
 		minThreshold: 800 * time.Microsecond,
 		rangee:       400 * time.Microsecond,
-		thresholdLen: 1,
-		pLmax:        1,
+		thresholdLen: 1,                       // Th_len
+		pLmax:        1,                       // p_Lmax
 		maxThreshold: 1200 * time.Microsecond, // TODO: maxTh not defined in papger
 
 		// pi2
@@ -98,24 +98,48 @@ func (q *dualPi2) pop() *packet {
 		hasClassic := q.cq.byt() > 0
 		scheduleLq := q.scheduler.schedule(hasL4S, hasClassic)
 
-		if scheduleLq {
-
+		if scheduleLq { //  L4S scheduled
 			pkt := q.lq.pop()
-			p_prime_L := q.laqm() // Native LAQM
 
-			q.mtx.Lock()
-			p_L := max(p_prime_L, q.p_CL) // Combining function
-			q.mtx.Unlock()
+			if q.p_CL < q.pLmax { // Check for overload saturation
+				var p_prime_L float64
+				if q.lq.len() > q.thresholdLen { // >1 packet queued
+					p_prime_L = q.laqm() // Native LAQM
+				} else {
+					p_prime_L = 0 // Suppress marking 1 pkt queue
+				}
+				q.mtx.Lock()
+				p_L := max(p_prime_L, q.p_CL) // Combining function
+				q.mtx.Unlock()
 
-			var mark bool
-			q.lq.recurCount, mark = recur(q.lq.recurCount, p_L)
-			if mark { // linear marking
-				pkt.mark()
+				var mark bool
+				q.lq.recurCount, mark = recur(q.lq.recurCount, p_L)
+				if mark { // linear marking
+					pkt.mark()
+				}
+			} else { // overload saturation
+				var mark, drop bool
+
+				q.mtx.Lock()
+				q.lq.recurCount, drop = recur(q.lq.recurCount, q.p_C)
+				q.mtx.Unlock()
+
+				if drop { // probability p_C = p'^2
+					continue // revert to Classic drop due to overload
+				}
+
+				q.mtx.Lock()
+				q.lq.recurCount, mark = recur(q.lq.recurCount, q.p_C)
+				q.mtx.Unlock()
+
+				if mark { // probability p_CL = k * p'
+					pkt.mark() // linear marking of remaining packets
+				}
 			}
 
 			return pkt
 
-		} else {
+		} else { // Classic scheduled
 			pkt := q.cq.pop()
 			var mark bool
 
@@ -124,7 +148,7 @@ func (q *dualPi2) pop() *packet {
 			q.mtx.Unlock()
 
 			if mark { // probability p_C = p'^2
-				if pkt.info.ECN == netsim.ECNNonECT { // if ECN field = not-ECT
+				if pkt.info.ECN == netsim.ECNNonECT || q.p_C >= q.pCmax { // ECN field = not-ECT OR Overload disables ECN
 					// drop packet
 					continue
 				}
@@ -143,7 +167,7 @@ func (q *dualPi2) empty() bool {
 }
 
 func (q *dualPi2) update() {
-	curq := q.cq.time() // use queuing time of first-in Classic packet
+	curq := max(q.cq.time(), q.lq.time()) // use greatest queuing time
 
 	q.p_prime = q.p_prime + q.alpha*(curq.Seconds()-q.target.Seconds()) + q.beta*(curq.Seconds()-q.prevq.Seconds())
 
