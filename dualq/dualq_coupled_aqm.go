@@ -29,6 +29,13 @@ type Node struct {
 	linkRate float64
 }
 
+func (nd *Node) TcLog() netsim.TcLogData {
+	return netsim.TcLogData{
+		Bandwidth: nd.linkRate,
+		Burst:     nd.limiter.Burst(),
+	}
+}
+
 func NewRateQueue(bitrate float64, burst int) netsim.Node {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &Node{
