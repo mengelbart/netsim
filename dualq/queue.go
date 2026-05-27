@@ -3,6 +3,7 @@ package dualq
 import (
 	"context"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/mengelbart/netsim"
@@ -16,8 +17,10 @@ type dualPi2 struct {
 	MTU   int
 	limit int
 
-	p_CL    float64
-	p_C     float64
+	mtx  sync.Mutex // protect p_CL and p_C
+	p_CL float64
+	p_C  float64
+
 	prevq   time.Duration
 	p_prime float64
 
@@ -98,8 +101,11 @@ func (q *dualPi2) pop() *packet {
 		if scheduleLq {
 
 			pkt := q.lq.pop()
-			p_prime_L := q.laqm()         // Native LAQM
+			p_prime_L := q.laqm() // Native LAQM
+
+			q.mtx.Lock()
 			p_L := max(p_prime_L, q.p_CL) // Combining function
+			q.mtx.Unlock()
 
 			var mark bool
 			q.lq.recurCount, mark = recur(q.lq.recurCount, p_L)
@@ -111,9 +117,12 @@ func (q *dualPi2) pop() *packet {
 
 		} else {
 			pkt := q.cq.pop()
-
 			var mark bool
+
+			q.mtx.Lock()
 			q.cq.recurCount, mark = recur(q.cq.recurCount, q.p_C)
+			q.mtx.Unlock()
+
 			if mark { // probability p_C = p'^2
 				if pkt.info.ECN == netsim.ECNNonECT { // if ECN field = not-ECT
 					// drop packet
@@ -137,8 +146,12 @@ func (q *dualPi2) update() {
 	curq := q.cq.time() // use queuing time of first-in Classic packet
 
 	q.p_prime = q.p_prime + q.alpha*(curq.Seconds()-q.target.Seconds()) + q.beta*(curq.Seconds()-q.prevq.Seconds())
+
+	q.mtx.Lock()
 	q.p_CL = q.k * q.p_prime       // Coupled L4S prob = base prob * coupling factor
 	q.p_C = math.Pow(q.p_prime, 2) // Classic prob = (base prob)^2
+	q.mtx.Unlock()
+
 	q.prevq = curq
 }
 
